@@ -1,7 +1,8 @@
 {
   "expo": {
-    "name": "frontend",
-    "slug": "frontend",
+    "name": "bitesy",
+    "scheme": "bitesy",
+    "slug": "bitesy",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -25,6 +26,17 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow bitesy to access your camera",
+          "microphonePermission": "Allow bitesy to access your microphone",
+          "recordAudioAndroid": true
+        }
+      ]
+    ]
   }
 }
