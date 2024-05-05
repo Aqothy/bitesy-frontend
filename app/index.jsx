@@ -6,6 +6,8 @@ import {
   Image,
   ActivityIndicator,
   TextInput,
+  TouchableWithoutFeedback,
+  Keyboard,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import React from "react";
@@ -15,12 +17,10 @@ import flashOffImage from "../assets/icons/flash-off.png";
 import flashOnImage from "../assets/icons/flash.png";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
-import { Link } from "expo-router";
-import { manipulateAsync, FlipType, SaveFormat } from "expo-image-manipulator";
+import { manipulateAsync, FlipType } from "expo-image-manipulator";
 import { SafeAreaView } from "react-native-safe-area-context";
-import * as FileSystem from "expo-file-system";
-import axios from 'axios'
-
+import axios from "axios";
+import { useNavigation } from "@react-navigation/native";
 
 const App = () => {
   const [type, setType] = useState(CameraType.back);
@@ -32,7 +32,8 @@ const App = () => {
   const [sphotoUri, setSPhotoUri] = useState(null);
   const [loading, setLoading] = useState(false);
   const captionInputRef = useRef(null);
-
+  const navigation = useNavigation();
+  const [caption, setCaption] = useState("");
 
   // Function to focus the caption input field
   const focusCaptionInput = () => {
@@ -53,17 +54,15 @@ const App = () => {
     if (cameraRef.current) {
       try {
         setLoading(true);
-        let photo = await cameraRef.current.takePictureAsync();
+        let photo = await cameraRef.current.takePictureAsync({ base64: true });
         if (type === CameraType.front) {
-          photo = await manipulateAsync(
-            photo.localUri || photo.uri,
-            [{ rotate: 180 }, { flip: FlipType.Vertical }],
-            { compress: 1, format: SaveFormat.PNG }
-          );
+          photo = await manipulateAsync(photo.localUri || photo.uri, [
+            { rotate: 180 },
+            { flip: FlipType.Vertical },
+          ]);
         }
-        await downloadImage(photo.uri)
-        second ? setSPhotoUri(photo) : setfPhotoUri(photo);
 
+        second ? setSPhotoUri(photo) : setfPhotoUri(photo);
         setSecond(!second);
         setLoading(false);
         focusCaptionInput();
@@ -98,175 +97,206 @@ const App = () => {
   function retake() {
     setfPhotoUri(null);
     setSPhotoUri(null);
+    setLoading(false);
     setType(CameraType.back);
   }
 
-  async function sendFile(){
+  async function sendFile() {
+    setLoading(true);
+
     const formData = new FormData();
+
     formData.append("image1", {
-      uri: fphotoUri,
+      uri: fphotoUri.uri,
       type: "image/jpeg",
       name: "image.jpg",
     });
     formData.append("image2", {
-      uri: sphotoUri,
+      uri: sphotoUri.uri,
       type: "image/jpeg",
       name: "image.jpg",
     });
 
-    res = await axios.post()
+    formData.append("title", caption);
+
+    res = await axios.post(
+      "http://3.212.225.84:8000/api/add-experience/",
+      formData
+    );
+    setLoading(false);
+    retake();
+    navigation.navigate("feed");
   }
 
   return (
-    <SafeAreaView className="bg-black w-full h-screen">
-      <StatusBar style="auto" />
-      <View className="h-[15%] flex-row justify-center items-center relative">
-        <Image
-          source={require("../assets/icons/Logo.png")}
-          className="absolute bottom-3 w-[155px] h-[60px]"
-        />
-      </View>
-      <View className={`w-full flex justify-center h-[70%]`}>
-        {sphotoUri ? (
-          <View className="relative w-full h-full">
-            <Image
-              source={{ uri: sphotoUri.uri }}
-              className="absolute rounded-3xl overflow-hidden top-3 left-3 w-[110px] h-[150px] z-10"
-            />
-            <Image
-              source={{ uri: fphotoUri.uri }}
-              className="w-full h-full"
-              blurRadius={15}
-            />
-            <TextInput
-              ref={captionInputRef}
-              placeholder="Enter caption..."
-              placeholderTextColor="#000000"
-              style={[
-                {
-                  position: "absolute",
-                  borderColor: "black",
-                  borderWidth: 2,
-                  paddingHorizontal: 5,
-                  paddingVertical: 3,
-                  width: 145,
-                  top: "47%",
-                  left: "33%",
-                  fontSize: 16,
-                  color: "black",
-                  backgroundColor: "#E5E4E2",
-                  borderRadius: 3,
-                },
-              ]}
-            />
-          </View>
-        ) : (
-          <View className="w-full h-full relative">
-            <Camera
-              type={type}
-              className={`h-full w-full`}
-              ref={cameraRef}
-              flashMode={flashMode}
-              autoFocus
-            />
-            <BlurView
-              intensity={loading ? 50 : 0}
-              tint="dark"
-              className="w-full h-full z-10 absolute inset-0"
-            ></BlurView>
-            {loading && (
-              <ActivityIndicator
-                size="large"
-                color="#A9A9A9"
-                className="absolute top-[47%] left-[47%] z-[100]"
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+      <SafeAreaView className="bg-black w-full h-screen">
+        <StatusBar style="auto" />
+        <View className="h-[15%] flex-row justify-center items-center relative">
+          <Image
+            source={require("../assets/icons/Logo.png")}
+            className="absolute bottom-3 w-[155px] h-[60px]"
+          />
+        </View>
+        <View className={`w-full flex justify-center h-[70%]`}>
+          {sphotoUri ? (
+            <View className="relative w-full h-full">
+              <Image
+                source={{ uri: sphotoUri?.uri }}
+                className="absolute rounded-3xl overflow-hidden top-3 left-3 w-[110px] h-[150px] z-10"
               />
-            )}
-          </View>
-        )}
-      </View>
-      <View className="h-[15%] relative w-full">
-        {sphotoUri ? (
-          <>
-            <TouchableOpacity
-              className="absolute left-7 top-10"
-              onPress={retake}
-            >
-              <LinearGradient
-                colors={[
-                  "rgba(255, 255, 255, 0.5)",
-                  "rgba(255, 255, 255, 0)",
-                  "rgba(255, 72, 219, 0)",
-                  "rgba(255, 72, 219, 0.5)",
+
+              <Image
+                source={{ uri: fphotoUri?.uri }}
+                className="w-full h-full"
+                blurRadius={15}
+              />
+
+              <TextInput
+                ref={captionInputRef}
+                onChangeText={(newText) => setCaption(newText)}
+                placeholder="Enter caption..."
+                placeholderTextColor="#000000"
+                multiline={true}
+                style={[
+                  {
+                    position: "absolute",
+                    paddingHorizontal: 5,
+                    paddingVertical: 3,
+                    width: 150,
+                    top: "40%",
+                    left: "32%",
+                    fontSize: 18,
+                    color: "black",
+                    zIndex: 100,
+                    textAlign: "center",
+                  },
                 ]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 0, y: 1 }}
-                className="rounded-[30px] h-[50px] w-[150px]"
-              >
-                <View className="flex-1 rounded-[25px] m-[4px] bg-black relative">
-                  <Text className="m-[10px] text-white text-lg absolute left-[5%] top-[-3]">
-                    Retake bitsey
-                  </Text>
-                </View>
-              </LinearGradient>
-            </TouchableOpacity>
-            <TouchableOpacity className="absolute right-7 top-10" onPress={sendFile}>
-              <LinearGradient
-                colors={[
-                  "rgba(255, 255, 255, 0.5)",
-                  "rgba(255, 255, 255, 0)",
-                  "rgba(255, 72, 219, 0)",
-                  "rgba(255, 72, 219, 0.5)",
-                ]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 0, y: 1 }}
-                className="rounded-[30px] h-[50px] w-[150px]"
-              >
-                <View className="flex-1 rounded-[25px] m-[4px] bg-black relative">
-                  <Text className="m-[10px] text-white text-lg absolute left-[13%] top-[-3]">
-                    Post bitesy
-                  </Text>
-                </View>
-              </LinearGradient>
-            </TouchableOpacity>
-          </>
-        ) : (
-          !loading && (
+              />
+              <BlurView
+                intensity={loading ? 50 : 0}
+                tint="dark"
+                className="w-full h-full z-10 absolute inset-0"
+              ></BlurView>
+              {loading && (
+                <ActivityIndicator
+                  size="large"
+                  color="#A9A9A9"
+                  className="absolute top-[47%] left-[47%] z-[100]"
+                />
+              )}
+            </View>
+          ) : (
+            <View className="w-full h-full relative">
+              <Camera
+                type={type}
+                className={`h-full w-full`}
+                ref={cameraRef}
+                flashMode={flashMode}
+                autoFocus
+              />
+              <BlurView
+                intensity={loading ? 50 : 0}
+                tint="dark"
+                className="w-full h-full z-10 absolute inset-0"
+              ></BlurView>
+              {loading && (
+                <ActivityIndicator
+                  size="large"
+                  color="#A9A9A9"
+                  className="absolute top-[47%] left-[47%] z-[100]"
+                />
+              )}
+            </View>
+          )}
+        </View>
+        <View className="h-[15%] relative w-full">
+          {sphotoUri ? (
             <>
-              <View className="absolute left-[20%] top-10">
-                <TouchableOpacity
-                  className="w-[200px] h-[50px] text-white"
-                  onPress={toggleFlashMode}
+              <TouchableOpacity
+                className="absolute left-7 top-10"
+                onPress={retake}
+              >
+                <LinearGradient
+                  colors={[
+                    "rgba(255, 255, 255, 0.5)",
+                    "rgba(255, 255, 255, 0)",
+                    "rgba(255, 72, 219, 0)",
+                    "rgba(255, 72, 219, 0.5)",
+                  ]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 0, y: 1 }}
+                  className="rounded-[30px] h-[50px] w-[150px]"
                 >
-                  <Image
-                    source={
-                      flashMode === Camera.Constants.FlashMode.off
-                        ? flashOffImage
-                        : flashOnImage
-                    }
-                  />
-                </TouchableOpacity>
-              </View>
-              <View className="absolute left-[41%] top-6">
-                <TouchableOpacity
-                  className="w-[200px] h-[50px] text-white rounded-[100%]"
-                  onPress={!second ? handlePress : takePicture}
+                  <View className="flex-1 rounded-[25px] m-[4px] bg-black relative">
+                    <Text className="m-[10px] text-white text-lg absolute left-[5%] top-[-3]">
+                      Retake bitsey
+                    </Text>
+                  </View>
+                </LinearGradient>
+              </TouchableOpacity>
+              <TouchableOpacity
+                className="absolute right-7 top-10"
+                onPress={sendFile}
+              >
+                <LinearGradient
+                  colors={[
+                    "rgba(255, 255, 255, 0.5)",
+                    "rgba(255, 255, 255, 0)",
+                    "rgba(255, 72, 219, 0)",
+                    "rgba(255, 72, 219, 0.5)",
+                  ]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 0, y: 1 }}
+                  className="rounded-[30px] h-[50px] w-[150px]"
                 >
-                  <Image source={require("../assets/icons/camera.png")} />
-                </TouchableOpacity>
-              </View>
-              <View className="absolute right-[-83] top-10">
-                <TouchableOpacity
-                  onPress={toggleCameraType}
-                  className="w-[200px] h-[50px] text-white"
-                >
-                  <Image source={require("../assets/icons/flip.png")} />
-                </TouchableOpacity>
-              </View>
+                  <View className="flex-1 rounded-[25px] m-[4px] bg-black relative">
+                    <Text className="m-[10px] text-white text-lg absolute left-[13%] top-[-3]">
+                      Post bitesy
+                    </Text>
+                  </View>
+                </LinearGradient>
+              </TouchableOpacity>
             </>
-          )
-        )}
-      </View>
-    </SafeAreaView>
+          ) : (
+            !loading && (
+              <>
+                <View className="absolute left-[20%] top-10">
+                  <TouchableOpacity
+                    className="w-[200px] h-[50px] text-white"
+                    onPress={toggleFlashMode}
+                  >
+                    <Image
+                      source={
+                        flashMode === Camera.Constants.FlashMode.off
+                          ? flashOffImage
+                          : flashOnImage
+                      }
+                    />
+                  </TouchableOpacity>
+                </View>
+                <View className="absolute left-[41%] top-6">
+                  <TouchableOpacity
+                    className="w-[200px] h-[50px] text-white rounded-[100%]"
+                    onPress={!second ? handlePress : takePicture}
+                  >
+                    <Image source={require("../assets/icons/camera.png")} />
+                  </TouchableOpacity>
+                </View>
+                <View className="absolute right-[-83] top-10">
+                  <TouchableOpacity
+                    onPress={toggleCameraType}
+                    className="w-[200px] h-[50px] text-white"
+                  >
+                    <Image source={require("../assets/icons/flip.png")} />
+                  </TouchableOpacity>
+                </View>
+              </>
+            )
+          )}
+        </View>
+      </SafeAreaView>
+    </TouchableWithoutFeedback>
   );
 };
 
